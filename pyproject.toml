@@ -8,7 +8,6 @@ version = "0.1.0"
 description = "Minimal NatNet 4.x receiver for OptiTrack Motive rigid bodies (standard library only)"
 readme = "README.md"
 requires-python = ">=3.8"
-license = { text = "MIT" }
 dependencies = []
 
 [project.optional-dependencies]
