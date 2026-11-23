@@ -24,3 +24,7 @@ log/
 
 # Example outputs
 *.csv
+
+# Local planning notes (not part of the project)
+CLAUDE.md
+PLAN.md
