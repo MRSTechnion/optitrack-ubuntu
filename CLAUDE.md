@@ -43,14 +43,23 @@ the core must not depend on ROS.
 5. **`README.md`** — the guide: Motive checklist → network → verify packets →
    Python → ROS 2 → troubleshooting table.
 
-## Wi‑Fi users
+## Wi‑Fi users (decided 2026-11-23)
 
-Multicast over Wi‑Fi may be unreliable. The guide tells Wi‑Fi users to run
-`check_network.sh` first. If it fails, they have two fallbacks:
+**Optimise for cable.** Laptops on the lab Wi‑Fi are for checks and
+monitoring, not real-time control. Motive stays on **Multicast**. Revisit only
+if a real Wi‑Fi requirement appears.
 
-- subscribe to ROS 2 topics published by a wired lab machine
-  (`ROS_DOMAIN_ID`, plus a discovery server or Zenoh if needed);
-- use a small unicast UDP relay script running on a wired machine.
+Measured on the lab Wi‑Fi (`mrs`, 5 GHz, Motive 180 Hz):
+- multicast, laptop power saving on (Ubuntu default): ~35% of frames, ~90 ms;
+- multicast, power saving off (`setup_network.sh` does this): 76–99%, ~10 ms;
+- unicast: 100%, 1–2 ms. The client supports it (`multicast=False`,
+  `--unicast`), but the ROS node and `check_network.sh` are multicast only.
+
+If Wi‑Fi control is ever needed, the options are: a unicast relay on a wired
+machine (keeps Motive on multicast), or switching the lab to unicast (every
+client must change). Motive unicast facts (verified): it streams to the socket
+that sent NAT_CONNECT, one copy per socket; drops a client ~10 s after its last
+keep-alive; only a new connect restarts it.
 
 ## Reference repo
 

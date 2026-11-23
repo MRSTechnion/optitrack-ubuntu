@@ -1,6 +1,6 @@
 # Build plan
 
-Status: steps 1–6 and 8 done (2026-11-23), tested live against Motive 3.1.0.1.
+Status: steps 1–8 done (2026-11-23), tested live against Motive 3.1.0.1.
 
 Each step ends with something testable. Steps marked **(live)** need this
 machine on the MRS network with Motive streaming.
@@ -36,9 +36,11 @@ machine on the MRS network with Motive streaming.
      nothing (node logs it); Lyrical removed logger.warn(); Ctrl+C on
      Lyrical raises RCLError from spin().
    - Still to test: a subscriber on another machine (ROS 2 + ufw).
-7. **Wi‑Fi fallback**
-   - Unicast relay script, plus a ROS 2-over-Wi‑Fi section.
-   - Test from a laptop on the lab Wi‑Fi. **(live)**
+7. ~~**Wi‑Fi**~~ ✅ (decided: optimise for cable; Wi‑Fi for checks only)
+   - Measured live on the lab Wi‑Fi: power saving was the main cause of loss
+     (35% → 76–99% of frames); `setup_network.sh` now turns it off.
+   - Unicast measured at 100%; client supports it, lab stays on multicast.
+   - Not built (not needed now): unicast relay, ROS 2-over-Wi‑Fi section.
 8. ~~**README guide**~~ ✅
    - Follow the order in CLAUDE.md.
    - The troubleshooting table includes the Z-up check, and

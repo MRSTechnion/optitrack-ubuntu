@@ -153,6 +153,9 @@ with NatNetClient() as client:            # Motive at 192.168.77.1 by default
                 print(rb.name, x, y, z)
 ```
 
+If Motive's Transmission Type is **Unicast** instead of Multicast (not the
+lab's setting), use `NatNetClient(multicast=False)` or `optitrack-print --unicast`.
+
 Each rigid body has `id`, `name`, `position`, `orientation`,
 `tracking_valid` and `error` (mean marker error, metres). Each frame has
 `frame_number` and `timestamp` (seconds, Motive's clock).
