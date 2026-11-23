@@ -71,3 +71,37 @@ def test_old_natnet_rejected():
 
 def test_build_request():
     assert P.build_request(P.NAT_REQUEST_MODELDEF) == struct.pack("<HH", 4, 0)
+
+
+def test_callback_error_does_not_stop_thread(monkeypatch):
+    """A failing callback is logged once and the receive thread keeps running."""
+    import logging
+    import time
+
+    from optitrack_natnet import NatNetClient
+    from optitrack_natnet import client as client_module
+
+    # Own handler instead of caplog: old pytest (6.2, Ubuntu 22.04) misses
+    # records logged from background threads.
+    records = []
+    handler = logging.Handler()
+    handler.emit = records.append
+    client_module.log.addHandler(handler)
+
+    frame = P.parse_frame(payload("frame_0.bin")[1], (4, 1))
+    client = NatNetClient(server_ip="127.0.0.1", local_ip="127.0.0.1")
+    monkeypatch.setattr(client, "receive", lambda: (time.sleep(0.001), frame)[1])
+    calls = []
+
+    def bad(f):
+        calls.append(f)
+        raise ValueError("boom")
+
+    try:
+        client.start(bad)
+        time.sleep(0.1)
+        client.stop()
+    finally:
+        client_module.log.removeHandler(handler)
+    assert len(calls) > 10
+    assert sum("Error in frame callback" in r.getMessage() for r in records) == 1

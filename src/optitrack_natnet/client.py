@@ -166,18 +166,32 @@ class NatNetClient:
             yield self.receive()
 
     def start(self, callback: Callable[[P.Frame], None]) -> None:
-        """Call ``callback(frame)`` for every frame, from a background thread."""
+        """Call ``callback(frame)`` for every frame, from a background thread.
+
+        An exception in ``callback`` is logged (once per distinct error) and
+        receiving continues, so one bad frame does not stop the stream.
+        """
         self._stop.clear()
 
         def loop():
+            reported = set()
             while not self._stop.is_set():
                 try:
-                    callback(self.receive())
+                    frame = self.receive()
                 except TimeoutError as exc:
                     log.warning("%s", exc)
+                    continue
                 except OSError:
-                    if not self._stop.is_set():
-                        raise
+                    if self._stop.is_set():  # socket closed by close()
+                        return
+                    raise
+                try:
+                    callback(frame)
+                except Exception as exc:
+                    key = (type(exc), str(exc))
+                    if key not in reported:
+                        reported.add(key)
+                        log.exception("Error in frame callback (receiving continues)")
 
         self._thread = threading.Thread(target=loop, name="natnet", daemon=True)
         self._thread.start()
