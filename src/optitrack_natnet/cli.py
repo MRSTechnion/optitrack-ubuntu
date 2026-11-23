@@ -14,6 +14,8 @@ def main(argv=None) -> None:
     parser.add_argument("--server-ip", default=DEFAULT_SERVER_IP, help="Motive PC address")
     parser.add_argument("--local-ip", default=None,
                         help="this machine's IP on the Motive network (default: auto)")
+    parser.add_argument("--unicast", action="store_true",
+                        help="Motive's Transmission Type is Unicast (default: Multicast)")
     parser.add_argument("--rate", type=float, default=10.0,
                         help="lines printed per second (default 10; Motive may stream faster)")
     args = parser.parse_args(argv)
@@ -22,7 +24,7 @@ def main(argv=None) -> None:
     period = 1.0 / args.rate if args.rate > 0 else 0.0
     last = 0.0
     try:
-        with NatNetClient(args.server_ip, args.local_ip) as client:
+        with NatNetClient(args.server_ip, args.local_ip, multicast=not args.unicast) as client:
             for frame in client.frames():
                 now = time.monotonic()
                 if now - last < period:

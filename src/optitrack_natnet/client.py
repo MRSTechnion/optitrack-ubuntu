@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import socket
 import threading
+import time
 from typing import Callable, Iterator
 
 from . import protocol as P
@@ -47,6 +48,9 @@ class NatNetClient:
         local_ip: this machine's address on the Motive network. By default it
             is found from the route to ``server_ip``. Set it when the machine
             has several network interfaces and the guess is wrong.
+        multicast: True (default) for Motive's Multicast transmission type;
+            False for Unicast, where Motive streams to the socket that sent it
+            the connect request, as long as it sends keep-alives (once per second).
         multicast_group, command_port, data_port: must match Motive's
             streaming settings (the defaults are Motive's defaults).
         timeout: seconds to wait for Motive before raising ``TimeoutError``.
@@ -60,6 +64,7 @@ class NatNetClient:
         command_port: int = DEFAULT_COMMAND_PORT,
         data_port: int = DEFAULT_DATA_PORT,
         timeout: float = 2.0,
+        multicast: bool = True,
     ):
         self.server_ip = server_ip
         self.local_ip = local_ip or local_ip_for(server_ip)
@@ -67,6 +72,7 @@ class NatNetClient:
         self.command_port = command_port
         self.data_port = data_port
         self.timeout = timeout
+        self.multicast = multicast
 
         self.server_info: P.ServerInfo | None = None
         self.names: dict[int, str] = {}
@@ -74,6 +80,7 @@ class NatNetClient:
         self._data: socket.socket | None = None
         self._thread: threading.Thread | None = None
         self._stop = threading.Event()
+        self._last_keepalive = 0.0
 
     # -- connection -------------------------------------------------------
 
@@ -82,31 +89,64 @@ class NatNetClient:
         self._cmd = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._cmd.bind((self.local_ip, 0))
         self._cmd.settimeout(self.timeout)
+        if not self.multicast:
+            # Unicast: Motive streams frames to the socket that sends the connect
+            # request (one copy per such socket), so a single socket does
+            # commands, keep-alives and frames.
+            self._data = self._cmd
 
-        msg_id, payload = self._request(P.NAT_CONNECT, b"Ping\0")
-        if msg_id != P.NAT_SERVERINFO:
-            raise P.NatNetError(f"unexpected reply {msg_id} to connect")
+        payload = self._request(P.NAT_CONNECT, P.NAT_SERVERINFO, b"Ping\0")
         self.server_info = P.parse_server_info(payload)
         log.info("Connected to %s %s, NatNet %s", self.server_info.app_name,
                  ".".join(map(str, self.server_info.app_version)),
                  ".".join(map(str, self.server_info.natnet_version)))
         self.refresh_names()
 
-        self._data = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
-        self._data.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self._data.bind(("", self.data_port))
-        # Join the group on the Motive-side interface explicitly, so it works
-        # even when another interface (e.g. Wi-Fi) holds the default route.
-        mreq = socket.inet_aton(self.multicast_group) + socket.inet_aton(self.local_ip)
-        self._data.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
-        self._data.settimeout(self.timeout)
+        if self.multicast:
+            self._data = socket.socket(socket.AF_INET, socket.SOCK_DGRAM, socket.IPPROTO_UDP)
+            self._data.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._data.bind(("", self.data_port))
+            # Join the group on the Motive-side interface explicitly, so it works
+            # even when another interface (e.g. Wi-Fi) holds the default route.
+            mreq = socket.inet_aton(self.multicast_group) + socket.inet_aton(self.local_ip)
+            self._data.setsockopt(socket.IPPROTO_IP, socket.IP_ADD_MEMBERSHIP, mreq)
+            self._data.settimeout(self.timeout)
+        else:
+            self._send_keepalive()
         return self
+
+    def _send_keepalive(self) -> None:
+        assert self._data is not None
+        self._data.sendto(P.build_request(P.NAT_KEEPALIVE), (self.server_ip, self.command_port))
+        self._last_keepalive = time.monotonic()
+
+    def _send_unicast_connect(self) -> None:
+        # Its NAT_SERVERINFO reply arrives with the frames and is skipped.
+        assert self._data is not None
+        self._data.sendto(P.build_request(P.NAT_CONNECT, b"Ping\0"),
+                          (self.server_ip, self.command_port))
+        self._last_keepalive = time.monotonic()
+
+    def _unicast_keepalive(self) -> None:
+        # Motive drops a unicast client ~10 s after its last keep-alive, and a
+        # keep-alive does not restart it; only a new connect does. So after a
+        # long pause (e.g. a breakpoint) connect again instead.
+        idle = time.monotonic() - self._last_keepalive
+        if idle > 5.0:
+            self._send_unicast_connect()
+        elif idle > 1.0:
+            self._send_keepalive()
 
     def close(self) -> None:
         self.stop()
-        for s in (self._data, self._cmd):
-            if s is not None:
-                s.close()
+        if not self.multicast and self._cmd is not None:
+            try:  # tell Motive to stop streaming to us
+                self._cmd.sendto(P.build_request(P.NAT_DISCONNECT),
+                                 (self.server_ip, self.command_port))
+            except OSError:
+                pass
+        for s in {self._data, self._cmd} - {None}:
+            s.close()
         self._data = self._cmd = None
 
     def __enter__(self) -> NatNetClient:  # noqa: PYI034  (stdlib only, no typing_extensions)
@@ -115,24 +155,34 @@ class NatNetClient:
     def __exit__(self, *exc) -> None:
         self.close()
 
-    def _request(self, msg_id: int, payload: bytes = b""):
+    def _request(self, msg_id: int, reply_id: int, payload: bytes = b"") -> memoryview:
+        """Send a command and return the payload of its reply.
+
+        Other packets on the command socket (e.g. frames, which Motive may also
+        send there in unicast mode) are skipped.
+        """
         assert self._cmd is not None, "call connect() first"
         self._cmd.sendto(P.build_request(msg_id, payload), (self.server_ip, self.command_port))
-        try:
-            packet, _ = self._cmd.recvfrom(65535)
-        except socket.timeout:
-            raise TimeoutError(
-                f"No reply from Motive at {self.server_ip}:{self.command_port} "
-                f"(local IP {self.local_ip}). Is Motive streaming? "
-                f"Run setup/check_network.sh") from None
-        return P.split_header(packet)
+        deadline = time.monotonic() + self.timeout
+        while True:
+            try:
+                packet, _ = self._cmd.recvfrom(65535)
+            except socket.timeout:
+                packet = None
+            if packet is not None:
+                got_id, reply = P.split_header(packet)
+                if got_id == reply_id:
+                    return reply
+            if packet is None or time.monotonic() > deadline:
+                raise TimeoutError(
+                    f"No reply from Motive at {self.server_ip}:{self.command_port} "
+                    f"(local IP {self.local_ip}). Is Motive streaming? "
+                    f"Run setup/check_network.sh")
 
     def refresh_names(self) -> dict[int, str]:
         """Ask Motive for the current rigid body names."""
         assert self.server_info is not None
-        msg_id, payload = self._request(P.NAT_REQUEST_MODELDEF)
-        if msg_id != P.NAT_MODELDEF:
-            raise P.NatNetError(f"unexpected reply {msg_id} to model request")
+        payload = self._request(P.NAT_REQUEST_MODELDEF, P.NAT_MODELDEF)
         self.names = P.parse_model_def(payload, self.server_info.version)
         log.info("Rigid bodies: %s", self.names)
         return self.names
@@ -143,13 +193,23 @@ class NatNetClient:
         """Block until the next frame arrives and return it."""
         if self._data is None or self.server_info is None:
             raise RuntimeError("call connect() first")
+        retried = False
         while True:
+            if not self.multicast:
+                self._unicast_keepalive()
             try:
                 packet, _ = self._data.recvfrom(65535)
             except socket.timeout:
+                if not self.multicast and not retried:
+                    retried = True  # the registration may have expired: connect again
+                    self._send_unicast_connect()
+                    continue
+                where = (f"{self.multicast_group}:{self.data_port}" if self.multicast
+                         else f"unicast from {self.server_ip}")
                 raise TimeoutError(
-                    f"No frames on {self.multicast_group}:{self.data_port} "
-                    f"(local IP {self.local_ip}). Run setup/check_network.sh") from None
+                    f"No frames ({where}, local IP {self.local_ip}). Does Motive's "
+                    f"Transmission Type match ({'Multicast' if self.multicast else 'Unicast'})? "
+                    f"Run setup/check_network.sh") from None
             msg_id, payload = P.split_header(packet)
             if msg_id != P.NAT_FRAMEOFDATA:
                 continue
