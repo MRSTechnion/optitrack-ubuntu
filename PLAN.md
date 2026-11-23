@@ -1,6 +1,6 @@
 # Build plan
 
-Status: steps 1–5 done (2026-11-23), tested live against Motive 3.1.0.1.
+Status: steps 1–6 done (2026-11-23), tested live against Motive 3.1.0.1.
 
 Each step ends with something testable. Steps marked **(live)** need this
 machine on the MRS network with Motive streaming.
@@ -25,10 +25,17 @@ machine on the MRS network with Motive streaming.
    - Write unit tests using the fixtures; then run a live test. **(live)**
 5. ~~**Examples**~~ ✅
    - `print_poses.py` and `log_csv.py`.
-6. **ROS 2 package `optitrack_ros2`**
+6. ~~**ROS 2 package `optitrack_ros2`**~~ ✅
    - `PoseStamped` per rigid body plus TF.
    - Parameters: server IP, frame id, topic prefix.
    - Build and run on Lyrical here; check on a Humble lab machine.
+   - Done: tested live on Lyrical (host) and Humble (lab Docker image,
+     `--net=host`): 180 Hz pose + TF, `rate` limit, untracked-body warning.
+   - Gotchas found: create_publisher() from the NatNet thread deadlocks
+     (publishers are made on the ROS thread); untracked bodies publish
+     nothing (node logs it); Lyrical removed logger.warn(); Ctrl+C on
+     Lyrical raises RCLError from spin().
+   - Still to test: a subscriber on another machine (ROS 2 + ufw).
 7. **Wi‑Fi fallback**
    - Unicast relay script, plus a ROS 2-over-Wi‑Fi section.
    - Test from a laptop on the lab Wi‑Fi. **(live)**
