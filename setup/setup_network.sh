@@ -8,7 +8,8 @@
 #   1. sets your assigned static IP on the interface connected to the lab network
 #      (skipped if the interface already has an address on that network);
 #   2. routes multicast (224.0.0.0/4) through that interface;
-#   3. if the ufw firewall is enabled, allows NatNet data (UDP 1511) from the lab network.
+#   3. if the ufw firewall is enabled, allows NatNet data (UDP 1511) from the lab network;
+#   4. on Wi-Fi, turns power saving off for that connection (otherwise many frames are lost).
 
 set -euo pipefail
 SERVER_IP="${SERVER_IP:-192.168.77.1}"
@@ -88,12 +89,29 @@ else
     echo "3. Firewall: ufw is off, nothing to do"
 fi
 
-# 5. Apply ------------------------------------------------------------------
+# 5. Wi-Fi power saving -----------------------------------------------------
+# With power saving on, the access point holds multicast for the laptop and
+# sends it in bursts every ~100 ms: measured in the lab, 34% of frames arrived
+# with power saving on vs ~82% with it off. Only this connection is changed.
+if [ "$(nmcli -g connection.type connection show "$CON")" = "802-11-wireless" ]; then
+    if [ "$(nmcli -g 802-11-wireless.powersave connection show "$CON")" = "2 (disable)" ] \
+        || [ "$(nmcli -g 802-11-wireless.powersave connection show "$CON")" = "disable" ]; then
+        echo "4. Wi-Fi power saving: already off for '$CON'"
+    else
+        echo "4. Wi-Fi power saving: turning it off for '$CON' (more OptiTrack frames arrive)"
+        run nmcli connection modify "$CON" 802-11-wireless.powersave 2
+        CHANGED=1
+    fi
+else
+    echo "4. Wi-Fi power saving: not Wi-Fi, nothing to do"
+fi
+
+# 6. Apply ------------------------------------------------------------------
 if [ $CHANGED -eq 1 ]; then
-    echo "4. Applying changes (the connection restarts for a moment)"
+    echo "5. Applying changes (the connection restarts for a moment)"
     run nmcli connection up "$CON"
 else
-    echo "4. Nothing to apply, already configured"
+    echo "5. Nothing to apply, already configured"
 fi
 echo
 

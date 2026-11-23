@@ -56,16 +56,32 @@ accept the one it detected) and, if needed, your assigned IP. Then it:
 2. routes multicast traffic through that interface, which matters when the
    computer also has another connection, e.g. campus Wi‑Fi;
 3. if the `ufw` firewall is on, allows the OptiTrack data (UDP port 1511) from
-   the lab network.
+   the lab network;
+4. on Wi‑Fi, turns **power saving** off for the lab Wi‑Fi connection only
+   (see below).
 
 The settings are saved in NetworkManager and survive a reboot. Running the
 script again is safe: it changes nothing that is already set. To preview
 without changing anything: `setup/setup_network.sh --dry-run`.
 
-> **Wi‑Fi users:** OptiTrack data is sent as multicast, which some Wi‑Fi
-> networks deliver slowly or drop. Run the check below and look at the frame
-> rate and the "lost" percentage. If it fails, use the ROS 2 topics published
-> by a wired lab computer instead (see [ROS 2 on several computers](#ros-2-on-several-computers)).
+### Wi-Fi users
+
+OptiTrack data is sent as multicast, which Wi‑Fi delivers less reliably than a
+cable. Measured on the lab Wi‑Fi (`mrs`) with Motive at 180 frames/s:
+
+| Laptop Wi‑Fi power saving | Frames received | Typical delay | Occasional pauses |
+|---|---|---|---|
+| On (Ubuntu's default) | ~35% | ~90 ms | up to 0.6 s |
+| **Off** (set by `setup_network.sh`) | **80–99%** | **~10 ms** | up to 0.3 s |
+
+So on Wi‑Fi:
+
+- **Run `sudo setup/setup_network.sh` while connected to the lab Wi‑Fi**, so
+  power saving is turned off for that network.
+- Wi‑Fi is fine for **monitoring, visualisation and slow robots**.
+- For **control loops** (e.g. flying drones), use a **cable**, or run the
+  OptiTrack ROS 2 node on a wired computer and subscribe to its topics (see
+  [ROS 2 on several computers](#ros-2-on-several-computers)).
 
 ## 3. Check the connection
 
@@ -252,7 +268,8 @@ Start with `setup/check_network.sh`; it shows which step fails.
 | Step 4 fails: no reply from Motive | Motive not running or not streaming | Ask lab staff to check [Motive settings](#8-motive-settings-lab-staff) |
 | **Step 4 OK but step 5 fails** (Motive answers, no frames) | Firewall blocks the data | `sudo setup/setup_network.sh` (adds the ufw rule) |
 | Step 3 warns about the multicast route | Another connection (e.g. campus Wi‑Fi) gets the multicast traffic | `sudo setup/setup_network.sh`. The Python client works anyway, but other tools may not |
-| Step 5: frames lost, or a low rate | Wi‑Fi drops multicast | Use a cable, or the ROS 2 topics from a wired computer |
+| Step 1 warns "Wi‑Fi power saving is on" | Ubuntu's default; makes the access point send multicast in bursts | `sudo setup/setup_network.sh` while on the lab Wi‑Fi |
+| Step 5: frames lost, or a low rate | Wi‑Fi drops multicast | See [Wi-Fi users](#wi-fi-users); for control, use a cable |
 | A body is missing or shows `(not tracked)`; its ROS topic is silent | Motive cannot see its markers, or the body is not set to stream | Check that the body is visible and enabled in Motive's Assets pane |
 | **Orientation looks wrong** (rotated 90°, "up" points sideways) | Motive's Up Axis changed | In Motive: Settings → Streaming → **Up Axis = Z Axis** |
 | `TimeoutError` when connecting | Wrong IP, or wrong interface on a computer with several networks | Run the check; pass `local_ip` (`NatNetClient(local_ip=...)` / `local_ip:=...`) |

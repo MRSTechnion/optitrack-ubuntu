@@ -38,7 +38,13 @@ else
     KIND="wired"
 fi
 ok "$IFACE ($KIND) has $LOCAL_IP"
-[ "$KIND" = "Wi-Fi" ] && warn "Wi-Fi: multicast may be slow or lossy; check the rate in step 5."
+if [ "$KIND" = "Wi-Fi" ]; then
+    warn "Wi-Fi: multicast is lossier than a cable; check the loss in step 5."
+    if command -v iw >/dev/null && iw dev "$IFACE" get power_save 2>/dev/null | grep -q ': on'; then
+        warn "Wi-Fi power saving is on: many frames will be lost or delayed."
+        hint "Turn it off for this network: sudo setup/setup_network.sh"
+    fi
+fi
 
 # 2. Reach the Motive PC ----------------------------------------------------
 echo "2. Motive PC"
@@ -126,16 +132,19 @@ else:
     colour, tag = (G, " OK ") if loss < 1 else (Y, "WARN")
     print(f"  {colour}[{tag}]{N} {n} frames, {rate:.0f} frames/s, {loss:.1f}% lost")
     if loss >= 1:
-        print("         Frames are being dropped (typical on Wi-Fi). See README, 'Wi-Fi users'.")
-sys.exit(1 if failed else 0)
+        print("         Frames are being dropped (typical on Wi-Fi).")
+sys.exit(1 if failed else (2 if n and loss >= 1 else 0))
 EOF
 PY_STATUS=$?
-[ $PY_STATUS -ne 0 ] && FAILED=1
+[ $PY_STATUS -eq 1 ] && FAILED=1
 
 echo
-if [ $FAILED -eq 0 ]; then
-    echo "Result: OK, this machine receives OptiTrack data."
-else
+if [ $FAILED -ne 0 ]; then
     echo "Result: problems found, see [FAIL] lines above."
+elif [ $PY_STATUS -eq 2 ]; then
+    echo "Result: data arrives, but frames are lost. Fine for monitoring and slow robots;"
+    echo "        for control (e.g. drones) use a cable. See README, 'Wi-Fi users'."
+else
+    echo "Result: OK, this machine receives OptiTrack data."
 fi
 exit $FAILED
