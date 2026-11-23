@@ -1,6 +1,6 @@
 # Build plan
 
-Status: steps 1–6 done (2026-11-23), tested live against Motive 3.1.0.1.
+Status: steps 1–6 and 8 done (2026-11-23), tested live against Motive 3.1.0.1.
 
 Each step ends with something testable. Steps marked **(live)** need this
 machine on the MRS network with Motive streaming.
@@ -39,7 +39,7 @@ machine on the MRS network with Motive streaming.
 7. **Wi‑Fi fallback**
    - Unicast relay script, plus a ROS 2-over-Wi‑Fi section.
    - Test from a laptop on the lab Wi‑Fi. **(live)**
-8. **README guide**
+8. ~~**README guide**~~ ✅
    - Follow the order in CLAUDE.md.
    - The troubleshooting table includes the Z-up check, and
      "Motive answers but no frames → firewall" (verified on 26.04).
@@ -47,4 +47,6 @@ machine on the MRS network with Motive streaming.
    - GitHub Actions: lint, unit tests on Python 3.8–3.14, and ROS 2 builds
      in Humble and Lyrical containers.
 10. **Publish**
-    - Push to the personal GitHub; later transfer to `MRSTechnion`.
+    - Pushed to github.com/AyalonLevy/optitrack-ubuntu (private).
+    - Later: transfer to `MRSTechnion`, then update the clone URLs in README.md
+      (GitHub redirects the old URL, but the README should show the new one).
