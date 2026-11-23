@@ -70,6 +70,7 @@ so avoid `X | None` syntax at runtime, or use `from __future__ import annotation
 
 ## Repo / publishing
 
-- Start on the maintainer's personal GitHub; transfer to the lab GitHub
-  (`MRSTechnion`) when finished.
+- Lives in the maintainer's GitHub organisation **`ayalon-mrslab`**
+  (github.com/ayalon-mrslab/optitrack-ubuntu), not the personal `AyalonLevy`
+  account. Transfer to the lab GitHub (`MRSTechnion`) when finished.
 - Keep the guide simple; the audience is lab students.

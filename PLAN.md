@@ -47,6 +47,7 @@ machine on the MRS network with Motive streaming.
    - GitHub Actions: lint, unit tests on Python 3.8–3.14, and ROS 2 builds
      in Humble and Lyrical containers.
 10. **Publish**
-    - Pushed to github.com/AyalonLevy/optitrack-ubuntu (private).
+    - Home: github.com/ayalon-mrslab/optitrack-ubuntu (private; first pushed
+      to AyalonLevy by mistake, transferred by the maintainer).
     - Later: transfer to `MRSTechnion`, then update the clone URLs in README.md
       (GitHub redirects the old URL, but the README should show the new one).

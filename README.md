@@ -33,7 +33,7 @@ You need a cable to the lab network (or the lab Wi‑Fi) and **your assigned
 IP address** (`192.168.77.x`, ask the lab staff).
 
 ```bash
-git clone https://github.com/AyalonLevy/optitrack-ubuntu.git
+git clone https://github.com/ayalon-mrslab/optitrack-ubuntu.git
 cd optitrack-ubuntu
 sudo setup/setup_network.sh      # once per computer
 setup/check_network.sh           # should end with "Result: OK"
@@ -166,7 +166,7 @@ Clone into your workspace and build as usual:
 ```bash
 source /opt/ros/humble/setup.bash          # or lyrical, jazzy, ...
 mkdir -p ~/ros2_ws/src && cd ~/ros2_ws/src
-git clone https://github.com/AyalonLevy/optitrack-ubuntu.git
+git clone https://github.com/ayalon-mrslab/optitrack-ubuntu.git
 cd ~/ros2_ws
 colcon build --packages-select optitrack_ros2
 source install/setup.bash
