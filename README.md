@@ -1,5 +1,7 @@
 # OptiTrack on Ubuntu
 
+[![CI](https://github.com/ayalon-mrslab/optitrack-ubuntu/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ayalon-mrslab/optitrack-ubuntu/actions/workflows/ci.yml)
+
 Receive live rigid body poses from the lab's OptiTrack system (Motive) on any
 Ubuntu computer, in plain Python or in ROS 2.
 
@@ -241,17 +243,25 @@ Rigid body names are made valid for ROS: `Rigid Body 1` → `Rigid_Body_1`,
 
 ### ROS 2 on several computers
 
-Run **one** OptiTrack node on the lab network; every computer with the same
-`ROS_DOMAIN_ID` sees its topics. Use your own domain ID so you don't see (or
-disturb) other people's robots:
+Run **one** OptiTrack node on a wired lab computer; every computer with the
+same `ROS_DOMAIN_ID` sees its topics. Tested between two lab computers: the
+full 180 Hz pose and TF arrive, also between **Humble and Lyrical**.
+
+**Use your own domain ID.** ROS 2 discovery goes out on *every* network a
+computer is connected to, so a computer that is also on the campus network
+sees other groups' topics on the default domain 0 (and they see yours):
 
 ```bash
-export ROS_DOMAIN_ID=17       # agree on a number with your group
+export ROS_DOMAIN_ID=17       # agree on a number with your group; add it to ~/.bashrc
 ```
 
-If the `ufw` firewall is on, it also blocks ROS 2 traffic between computers.
-On the lab network you can allow it with
-`sudo ufw allow in on <interface> from 192.168.77.0/24`.
+**Firewall:** if `ufw` is on, it blocks ROS 2 traffic between computers (the
+OptiTrack rule from `setup_network.sh` covers only port 1511). Allow the lab
+network on the lab interface:
+
+```bash
+sudo ufw allow in on <interface> from 192.168.77.0/24
+```
 
 ## 6. Coordinates
 
@@ -275,6 +285,8 @@ Start with `setup/check_network.sh`; it shows which step fails.
 | Step 5: frames lost, or a low rate | Wi‑Fi drops multicast | See [Wi-Fi users](#wi-fi-users); for control, use a cable |
 | A body is missing or shows `(not tracked)`; its ROS topic is silent | Motive cannot see its markers, or the body is not set to stream | Check that the body is visible and enabled in Motive's Assets pane |
 | **Orientation looks wrong** (rotated 90°, "up" points sideways) | Motive's Up Axis changed | In Motive: Settings → Streaming → **Up Axis = Z Axis** |
+| ROS 2 topics from another computer don't arrive (`does not appear to be published`) | `ufw` firewall on the receiving computer | `sudo ufw allow in on <interface> from 192.168.77.0/24` (see [ROS 2 on several computers](#ros-2-on-several-computers)) |
+| You see other people's topics (e.g. `/joy`, `/cf…`) | Everyone on the default `ROS_DOMAIN_ID` 0 | Set your own `ROS_DOMAIN_ID` |
 | `TimeoutError` when connecting | Wrong IP, or wrong interface on a computer with several networks | Run the check; pass `local_ip` (`NatNetClient(local_ip=...)` / `local_ip:=...`) |
 | `pip install -e .` fails on Ubuntu 20.04 | Old pip | `pip install --upgrade pip` inside the venv first |
 | `externally-managed-environment` error from pip | Ubuntu 24.04+ blocks pip outside a venv | Use the venv steps in [Install](#install) |
