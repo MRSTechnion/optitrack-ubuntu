@@ -1,0 +1,66 @@
+name: CI
+
+# Kept small on purpose (GitHub Free: private repos have limited Actions minutes):
+# Linux only, runs on main and pull requests, and a newer push cancels the
+# run still going for the same branch.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    name: Python ${{ matrix.python }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        # 3.8: Ubuntu 20.04, 3.10: 22.04 (Humble), 3.12: 24.04, 3.14: 26.04 (Lyrical)
+        python: ["3.8", "3.10", "3.12", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+
+      - name: Unit tests
+        run: uv run --no-project --python ${{ matrix.python }} --with pytest python -m pytest -q
+
+      - name: Lint (ruff, shellcheck)
+        if: matrix.python == '3.14'
+        run: |
+          uvx ruff@0.17.6 check .
+          shellcheck setup/*.sh
+
+  ros2:
+    name: ROS 2 ${{ matrix.distro }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    container: ros:${{ matrix.distro }}
+    strategy:
+      fail-fast: false
+      matrix:
+        distro: [humble, lyrical]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build
+        run: |
+          source /opt/ros/${{ matrix.distro }}/setup.bash
+          colcon build --base-paths ros2 --event-handlers console_direct-
+
+      - name: Smoke test (node imports, launch file loads)
+        run: |
+          source install/setup.bash
+          ros2 pkg executables optitrack_ros2 | grep -q optitrack_node
+          python3 -c "from optitrack_ros2.node import ros_name; assert ros_name('Rigid Body 1') == 'Rigid_Body_1'"
+          ros2 launch optitrack_ros2 optitrack.launch.py --show-args
