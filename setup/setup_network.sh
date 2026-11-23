@@ -8,12 +8,12 @@
 #   1. sets your assigned static IP on the interface connected to the lab network
 #      (skipped if the interface already has an address on that network);
 #   2. routes multicast (224.0.0.0/4) through that interface;
-#   3. if the ufw firewall is enabled, allows NatNet data (UDP 1511) from the lab network;
+#   3. if the ufw firewall is enabled, allows traffic from the lab network on that
+#      interface (OptiTrack data and ROS 2 between lab computers);
 #   4. on Wi-Fi, turns power saving off for that connection (otherwise many frames are lost).
 
 set -euo pipefail
 SERVER_IP="${SERVER_IP:-192.168.77.1}"
-DATA_PORT="${DATA_PORT:-1511}"
 PREFIX="${SERVER_IP%.*}"            # 192.168.77
 SUBNET="${PREFIX}.0/24"
 MC_ROUTE="224.0.0.0/4"
@@ -81,10 +81,12 @@ else
 fi
 
 # 4. Firewall ---------------------------------------------------------------
+# One rule for the whole (trusted) lab network on the lab interface: it covers
+# the OptiTrack data (UDP 1511) and ROS 2 between lab computers, which a
+# port-only rule would block. ufw skips the rule if it already exists.
 if command -v ufw >/dev/null && grep -q '^ENABLED=yes' /etc/ufw/ufw.conf 2>/dev/null; then
-    echo "3. Firewall: allowing UDP $DATA_PORT from $SUBNET on $IFACE"
-    run ufw allow in on "$IFACE" proto udp from "$SUBNET" to any port "$DATA_PORT" \
-        comment "OptiTrack NatNet"
+    echo "3. Firewall: allowing traffic from $SUBNET on $IFACE (OptiTrack + ROS 2)"
+    run ufw allow in on "$IFACE" from "$SUBNET" comment "MRS lab network"
 else
     echo "3. Firewall: ufw is off, nothing to do"
 fi

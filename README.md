@@ -57,8 +57,8 @@ accept the one it detected) and, if needed, your assigned IP. Then it:
 1. sets your static IP on that interface (only if it has none on `192.168.77.x`);
 2. routes multicast traffic through that interface, which matters when the
    computer also has another connection, e.g. campus Wi‑Fi;
-3. if the `ufw` firewall is on, allows the OptiTrack data (UDP port 1511) from
-   the lab network;
+3. if the `ufw` firewall is on, allows traffic from the lab network on that
+   interface: the OptiTrack data and ROS 2 between lab computers;
 4. on Wi‑Fi, turns **power saving** off for the lab Wi‑Fi connection only
    (see below).
 
@@ -255,13 +255,9 @@ sees other groups' topics on the default domain 0 (and they see yours):
 export ROS_DOMAIN_ID=17       # agree on a number with your group; add it to ~/.bashrc
 ```
 
-**Firewall:** if `ufw` is on, it blocks ROS 2 traffic between computers (the
-OptiTrack rule from `setup_network.sh` covers only port 1511). Allow the lab
-network on the lab interface:
-
-```bash
-sudo ufw allow in on <interface> from 192.168.77.0/24
-```
+**Firewall:** if `ufw` is on, it blocks ROS 2 traffic between computers.
+`sudo setup/setup_network.sh` allows the lab network on the lab interface,
+which covers both OptiTrack and ROS 2.
 
 ## 6. Coordinates
 
@@ -285,7 +281,7 @@ Start with `setup/check_network.sh`; it shows which step fails.
 | Step 5: frames lost, or a low rate | Wi‑Fi drops multicast | See [Wi-Fi users](#wi-fi-users); for control, use a cable |
 | A body is missing or shows `(not tracked)`; its ROS topic is silent | Motive cannot see its markers, or the body is not set to stream | Check that the body is visible and enabled in Motive's Assets pane |
 | **Orientation looks wrong** (rotated 90°, "up" points sideways) | Motive's Up Axis changed | In Motive: Settings → Streaming → **Up Axis = Z Axis** |
-| ROS 2 topics from another computer don't arrive (`does not appear to be published`) | `ufw` firewall on the receiving computer | `sudo ufw allow in on <interface> from 192.168.77.0/24` (see [ROS 2 on several computers](#ros-2-on-several-computers)) |
+| ROS 2 topics from another computer don't arrive (`does not appear to be published`) | `ufw` firewall on the receiving computer | `sudo setup/setup_network.sh` (allows the lab network) |
 | You see other people's topics (e.g. `/joy`, `/cf…`) | Everyone on the default `ROS_DOMAIN_ID` 0 | Set your own `ROS_DOMAIN_ID` |
 | `TimeoutError` when connecting | Wrong IP, or wrong interface on a computer with several networks | Run the check; pass `local_ip` (`NatNetClient(local_ip=...)` / `local_ip:=...`) |
 | `pip install -e .` fails on Ubuntu 20.04 | Old pip | `pip install --upgrade pip` inside the venv first |
